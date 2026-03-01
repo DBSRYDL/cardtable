@@ -1164,7 +1164,8 @@ function discardSelected() {
 
 function revealHand() {
   if (myHand.length === 0) { showToast('패가 비어있습니다.'); return; }
-  socket.emit('revealHand');
+  if (selectedHandCards.size === 0) { showToast('공개할 카드를 선택하세요.'); return; }
+  socket.emit('revealHand', { cardIds: [...selectedHandCards] });
   selectedHandCards.clear();
 }
 

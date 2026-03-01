@@ -265,26 +265,32 @@ io.on('connection', (socket) => {
     });
   });
 
-  // 패 공개 (내 패를 테이블로)
-  socket.on('revealHand', () => {
+  // 패 공개 (선택한 카드만 테이블로)
+  socket.on('revealHand', ({ cardIds }) => {
     const room = rooms[socket.data.roomId];
     if (!room) return;
     const hand = room.hands[socket.id];
-    hand.forEach((c, i) => {
+    const targets = (cardIds && cardIds.length > 0)
+      ? cardIds.map(id => hand.find(c => c.id === id)).filter(Boolean)
+      : [...hand];
+
+    targets.forEach((c, i) => {
+      const idx = hand.indexOf(c);
+      if (idx !== -1) hand.splice(idx, 1);
       c.owner = null;
       c.inHand = false;
       c.faceUp = true;
-      c.x = 200 + i * 70;
+      c.x = 200 + i * 75;
       c.y = 250;
       room.zCounter++;
       c.zIndex = room.zCounter;
       room.tableCards.push(c);
     });
-    room.hands[socket.id] = [];
+
     broadcastState(room);
     io.to(socket.data.roomId).emit('chat', {
       system: true,
-      msg: `👐 ${socket.data.playerName}이(가) 패를 공개했습니다!`
+      msg: `👐 ${socket.data.playerName}이(가) 카드 ${targets.length}장을 공개했습니다!`
     });
   });
 
