@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>카드 테이블</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=IM+Fell+English&family=Courier+Prime&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --felt: #1a4731;
+    --felt-light: #1e5238;
+    --felt-dark: #122e22;
+    --gold: #c9a84c;
+    --gold-light: #e8c96a;
+    --cream: #f5f0e8;
+    --red: #c0392b;
+    --dark: #0d1f17;
+    --chat-bg: rgba(10, 20, 15, 0.92);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'IM Fell English', serif;
+    background: var(--dark);
+    color: var(--cream);
+    height: 100vh;
+    overflow: hidden;
+    cursor: default;
+  }
+
+  /* ─── 로비 ─────────────────────────────── */
+  #lobby {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: radial-gradient(ellipse at center, #1a3d28 0%, #0a1610 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  #lobby::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: 
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(201,168,76,0.05) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(201,168,76,0.05) 40px);
+    pointer-events: none;
+  }
+
+  .lobby-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 4rem;
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 0 40px rgba(201,168,76,0.4), 2px 2px 0 rgba(0,0,0,0.8);
+    letter-spacing: 0.05em;
+    margin-bottom: 0.2em;
+    text-align: center;
+  }
+
+  .lobby-subtitle {
+    color: rgba(245,240,232,0.5);
+    font-size: 1rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 3rem;
+  }
+
+  .lobby-card {
+    background: rgba(15, 35, 22, 0.95);
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 4px;
+    padding: 2.5rem;
+    width: 380px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(201,168,76,0.1);
+  }
+
+  .lobby-card label {
+    display: block;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.5rem;
+    margin-top: 1.2rem;
+  }
+
+  .lobby-card label:first-child { margin-top: 0; }
+
+  .lobby-card input {
+    width: 100%;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(201,168,76,0.2);
+    border-radius: 2px;
+    padding: 0.7rem 1rem;
+    color: var(--cream);
+    font-family: 'Courier Prime', monospace;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .lobby-card input:focus { border-color: var(--gold); }
+  .lobby-card input::placeholder { color: rgba(245,240,232,0.2); }
+
+  .btn-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+    margin-top: 1.8rem;
+  }
+
+  .btn {
+    padding: 0.8rem 1.2rem;
+    border: 1px solid var(--gold);
+    background: transparent;
+    color: var(--gold);
+    font-family: 'IM Fell English', serif;
+    font-size: 0.95rem;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+
+  .btn:hover {
+    background: var(--gold);
+    color: var(--dark);
+    box-shadow: 0 0 20px rgba(201,168,76,0.3);
+  }
+
+  .btn.primary {
+    background: var(--gold);
+    color: var(--dark);
+    font-weight: 700;
+  }
+
+  .btn.primary:hover {
+    background: var(--gold-light);
+    box-shadow: 0 0 30px rgba(201,168,76,0.5);
+  }
+
+  .btn.danger {
+    border-color: #e74c3c;
+    color: #e74c3c;
+  }
+  .btn.danger:hover { background: #e74c3c; color: white; }
+
+  .error-msg {
+    color: #e74c3c;
+    font-size: 0.8rem;
+    margin-top: 0.8rem;
+    text-align: center;
+    min-height: 1.2em;
+    font-family: 'Courier Prime', monospace;
+  }
+
+  /* ─── 게임 화면 ─────────────────────────── */
+  #game {
+    display: none;
+    height: 100vh;
+    flex-direction: row;
+  }
+
+  /* 테이블 영역 */
+  #table-area {
+    flex: 1;
+    position: relative;
+    background: 
+      radial-gradient(ellipse at 50% 50%, var(--felt-light) 0%, var(--felt) 40%, var(--felt-dark) 100%);
+    overflow: hidden;
+  }
+
+  /* 펠트 질감 오버레이 */
+  #table-area::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Ccircle cx='1' cy='1' r='0.5' fill='rgba(0,0,0,0.08)'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* 테이블 테두리 */
+  #table-area::after {
+    content: '';
+    position: absolute;
+    inset: 12px;
+    border: 2px solid rgba(201,168,76,0.2);
+    border-radius: 60px;
+    pointer-events: none;
+    z-index: 0;
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.3);
+  }
+
+  /* 덱 존 */
+  #deck-zone {
+    position: absolute;
+    left: 50px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .deck-stack {
+    width: 70px;
+    height: 98px;
+    border: 2px dashed rgba(201,168,76,0.4);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    background: rgba(0,0,0,0.2);
+  }
+
+  .deck-stack:hover {
+    border-color: var(--gold);
+    box-shadow: 0 0 15px rgba(201,168,76,0.3);
+  }
+
+  .deck-stack .deck-count {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    color: var(--gold);
+    font-weight: 700;
+  }
+
+  .deck-stack .deck-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(201,168,76,0.6);
+    position: absolute;
+    bottom: 6px;
+  }
+
+  /* 덱 뒤에 카드 쌓인 효과 */
+  .deck-stack::before,
+  .deck-stack::after {
+    content: '';
+    position: absolute;
+    width: 70px;
+    height: 98px;
+    border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 6px;
+    background: #2a6648;
+  }
+  .deck-stack::before { top: -3px; left: -3px; z-index: -1; }
+  .deck-stack::after { top: -6px; left: -6px; z-index: -2; }
+
+  /* 카드 */
+  .card {
+    position: absolute;
+    width: 70px;
+    height: 98px;
+    border-radius: 6px;
+    cursor: grab;
+    user-select: none;
+    transition: box-shadow 0.1s;
+    transform-origin: center center;
+  }
+
+  .card:active { cursor: grabbing; }
+
+  .card.dragging {
+    box-shadow: 0 20px 40px rgba(0,0,0,0.6) !important;
+    z-index: 9999 !important;
+  }
+
+  .card-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* 앞면 */
+  .card-front {
+    background: white;
+    border: 1px solid rgba(0,0,0,0.15);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.8);
+  }
+
+  .card-front .suit-tl,
+  .card-front .suit-br {
+    position: absolute;
+    font-size: 0.75rem;
+    line-height: 1;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+  }
+
+  .card-front .suit-tl { top: 5px; left: 7px; }
+  .card-front .suit-br { bottom: 5px; right: 7px; transform: rotate(180deg); }
+
+  .card-front .suit-center {
+    font-size: 1.8rem;
+    line-height: 1;
+  }
+
+  .red { color: var(--red); }
+  .black { color: #1a1a1a; }
+
+  /* 뒷면 */
+  .card-back {
+    background: 
+      repeating-linear-gradient(45deg, #1a4035 0px, #1a4035 5px, #1e4a3e 5px, #1e4a3e 10px);
+    border: 2px solid rgba(201,168,76,0.5);
+  }
+
+  .card-back::after {
+    content: '🂠';
+    font-size: 2.5rem;
+    opacity: 0.3;
+  }
+
+  /* 카드 호버 */
+  .card:hover { box-shadow: 0 8px 20px rgba(0,0,0,0.4); }
+
+  /* 카드 컨텍스트 메뉴 */
+  #card-menu {
+    position: fixed;
+    background: var(--chat-bg);
+    border: 1px solid rgba(201,168,76,0.4);
+    border-radius: 4px;
+    padding: 0.3rem 0;
+    z-index: 99999;
+    min-width: 150px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+    display: none;
+  }
+
+  #card-menu button {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    background: none;
+    border: none;
+    color: var(--cream);
+    font-family: 'IM Fell English', serif;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s;
+  }
+
+  #card-menu button:hover { background: rgba(201,168,76,0.15); color: var(--gold); }
+  #card-menu hr { border-color: rgba(201,168,76,0.15); margin: 0.2rem 0; }
+
+  /* ─── 사이드바 ──────────────────────────── */
+  #sidebar {
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    background: var(--chat-bg);
+    border-left: 1px solid rgba(201,168,76,0.15);
+  }
+
+  .sidebar-header {
+    padding: 1rem 1.2rem;
+    border-bottom: 1px solid rgba(201,168,76,0.1);
+    font-family: 'Playfair Display', serif;
+    font-size: 0.9rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .room-tag {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.7rem;
+    background: rgba(201,168,76,0.1);
+    border: 1px solid rgba(201,168,76,0.2);
+    padding: 0.1rem 0.5rem;
+    border-radius: 2px;
+    color: rgba(201,168,76,0.7);
+  }
+
+  /* 플레이어 목록 */
+  #player-list {
+    padding: 0.8rem 1.2rem;
+    border-bottom: 1px solid rgba(201,168,76,0.1);
+    min-height: 80px;
+  }
+
+  .player-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    font-size: 0.85rem;
+    color: rgba(245,240,232,0.8);
+  }
+
+  .player-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #2ecc71;
+    box-shadow: 0 0 6px #2ecc71;
+    flex-shrink: 0;
+  }
+
+  .player-host { color: var(--gold); }
+  .player-you { font-style: italic; opacity: 0.7; font-size: 0.7rem; }
+
+  .hand-count {
+    margin-left: auto;
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.75rem;
+    color: rgba(201,168,76,0.5);
+  }
+
+  /* 액션 버튼들 */
+  #actions {
+    padding: 0.8rem 1.2rem;
+    border-bottom: 1px solid rgba(201,168,76,0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .action-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+  }
+
+  .act-btn {
+    padding: 0.45rem 0.5rem;
+    border: 1px solid rgba(201,168,76,0.25);
+    background: rgba(201,168,76,0.05);
+    color: rgba(245,240,232,0.8);
+    font-family: 'IM Fell English', serif;
+    font-size: 0.78rem;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+    text-align: center;
+  }
+
+  .act-btn:hover {
+    border-color: var(--gold);
+    background: rgba(201,168,76,0.12);
+    color: var(--gold);
+  }
+
+  .act-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .act-btn.full { grid-column: 1/-1; }
+  .act-btn.host-only { border-color: rgba(201,168,76,0.4); }
+
+  /* 내 패 영역 */
+  #my-hand-area {
+    padding: 0.8rem 1.2rem;
+    border-bottom: 1px solid rgba(201,168,76,0.1);
+  }
+
+  .hand-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(201,168,76,0.5);
+    margin-bottom: 0.5rem;
+  }
+
+  #hand-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 35px;
+  }
+
+  .hand-card-mini {
+    width: 30px;
+    height: 42px;
+    border-radius: 3px;
+    background: white;
+    border: 1px solid rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .hand-card-mini:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    z-index: 10;
+  }
+
+  .hand-card-mini.selected {
+    transform: translateY(-6px);
+    box-shadow: 0 0 0 2px var(--gold), 0 6px 15px rgba(0,0,0,0.5);
+  }
+
+  /* 채팅 */
+  #chat-box {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.8rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(201,168,76,0.2) transparent;
+  }
+
+  .chat-msg {
+    font-size: 0.82rem;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  .chat-msg .chat-name {
+    color: var(--gold);
+    font-weight: 700;
+    margin-right: 0.3rem;
+  }
+
+  .chat-msg.system {
+    color: rgba(245,240,232,0.35);
+    font-style: italic;
+    font-size: 0.75rem;
+  }
+
+  .chat-msg .chat-text { color: rgba(245,240,232,0.85); }
+
+  #chat-input-row {
+    display: flex;
+    padding: 0.8rem 1.2rem;
+    gap: 0.5rem;
+    border-top: 1px solid rgba(201,168,76,0.1);
+  }
+
+  #chat-input {
+    flex: 1;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 2px;
+    padding: 0.5rem 0.8rem;
+    color: var(--cream);
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.82rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  #chat-input:focus { border-color: rgba(201,168,76,0.4); }
+
+  #chat-send {
+    padding: 0.5rem 0.8rem;
+    background: rgba(201,168,76,0.1);
+    border: 1px solid rgba(201,168,76,0.3);
+    color: var(--gold);
+    font-family: 'IM Fell English', serif;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+  }
+
+  #chat-send:hover { background: rgba(201,168,76,0.2); }
+
+  /* 딜 모달 */
+  #deal-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 99998;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #deal-modal.show { display: flex; }
+
+  .modal-box {
+    background: #0d2318;
+    border: 1px solid rgba(201,168,76,0.4);
+    border-radius: 4px;
+    padding: 2rem;
+    width: 280px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+  }
+
+  .modal-box h3 {
+    font-family: 'Playfair Display', serif;
+    color: var(--gold);
+    margin-bottom: 1rem;
+  }
+
+  .modal-box input {
+    width: 100%;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(201,168,76,0.2);
+    padding: 0.6rem 0.8rem;
+    color: var(--cream);
+    font-family: 'Courier Prime', monospace;
+    font-size: 1rem;
+    border-radius: 2px;
+    outline: none;
+    margin-bottom: 1rem;
+  }
+
+  /* 토스트 알림 */
+  #toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-60px);
+    background: rgba(10,20,15,0.95);
+    border: 1px solid rgba(201,168,76,0.4);
+    color: var(--gold);
+    padding: 0.6rem 1.5rem;
+    border-radius: 2px;
+    font-family: 'IM Fell English', serif;
+    font-size: 0.9rem;
+    z-index: 999999;
+    transition: transform 0.3s ease;
+    pointer-events: none;
+  }
+
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ─── 반응형 ─────────────────── */
+  @media (max-width: 700px) {
+    #sidebar { width: 220px; }
+    .lobby-title { font-size: 2.5rem; }
+    .lobby-card { width: 320px; padding: 1.8rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── 로비 ── -->
+<div id="lobby">
+  <h1 class="lobby-title">Card Table</h1>
+  <p class="lobby-subtitle">The rules are yours to make</p>
+
+  <div class="lobby-card">
+    <label>Your Name</label>
+    <input type="text" id="player-name" placeholder="Enter your name" maxlength="16">
+
+    <label>Room Name</label>
+    <input type="text" id="room-name" placeholder="Friday Night Game" maxlength="20">
+
+    <div class="btn-row">
+      <button class="btn primary" onclick="createRoom()">Create Room</button>
+      <button class="btn" onclick="joinRoom()">Join Room</button>
+    </div>
+
+    <div class="error-msg" id="lobby-error"></div>
+  </div>
+</div>
+
+<!-- ── 게임 화면 ── -->
+<div id="game">
+
+  <!-- 테이블 -->
+  <div id="table-area">
+
+    <!-- 덱 -->
+    <div id="deck-zone">
+      <div class="deck-stack" onclick="drawCard()" title="클릭: 카드 뽑기">
+        <span class="deck-count" id="deck-count">52</span>
+        <span class="deck-label">Deck</span>
+      </div>
+    </div>
+
+    <!-- 테이블 카드들은 JS로 생성 -->
+
+  </div>
+
+  <!-- 사이드바 -->
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <span>🃏 Card Table</span>
+      <span class="room-tag" id="room-tag">—</span>
+    </div>
+
+    <!-- 플레이어 -->
+    <div id="player-list"></div>
+
+    <!-- 액션 버튼 -->
+    <div id="actions">
+      <div class="action-row">
+        <button class="act-btn" onclick="drawCard()" title="덱에서 1장 뽑기">🎴 Draw</button>
+        <button class="act-btn" onclick="openDealModal()" title="모든 플레이어에게 딜">🃏 Deal</button>
+      </div>
+      <div class="action-row">
+        <button class="act-btn" onclick="discardSelected()" title="선택한 패 카드를 테이블로">↓ Discard</button>
+        <button class="act-btn" onclick="revealHand()" title="내 패 전체 공개">👐 Reveal</button>
+      </div>
+      <button class="act-btn full host-only" id="btn-shuffle" onclick="shuffleDeck()" title="방장: 덱 셔플">🔀 Shuffle Deck</button>
+      <button class="act-btn full host-only" id="btn-reset" onclick="resetDeck()" title="방장: 덱 초기화">♻️ Reset Deck</button>
+    </div>
+
+    <!-- 내 패 -->
+    <div id="my-hand-area">
+      <div class="hand-label">My Hand</div>
+      <div id="hand-cards"></div>
+    </div>
+
+    <!-- 채팅 -->
+    <div id="chat-box"></div>
+
+    <div id="chat-input-row">
+      <input type="text" id="chat-input" placeholder="Say something..." maxlength="200"
+             onkeydown="if(event.key==='Enter') sendChat()">
+      <button id="chat-send" onclick="sendChat()">Send</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- 카드 컨텍스트 메뉴 -->
+<div id="card-menu">
+  <button onclick="menuFlip()">🔄 뒤집기</button>
+  <button onclick="menuPickup()">✋ 내 패로 가져오기</button>
+  <hr>
+  <button onclick="closeCardMenu()">닫기</button>
+</div>
+
+<!-- 딜 모달 -->
+<div id="deal-modal">
+  <div class="modal-box">
+    <h3>Deal Cards</h3>
+    <label style="font-size:0.75rem;letter-spacing:0.1em;color:var(--gold);">각 플레이어에게 몇 장씩?</label>
+    <input type="number" id="deal-count" value="1" min="1" max="13" style="margin-top:0.5rem;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+      <button class="btn" onclick="closeDealModal()">Cancel</button>
+      <button class="btn primary" onclick="confirmDeal()">Deal!</button>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────
+// 상수 & 상태
+// ─────────────────────────────────────────────
+
+const SUITS = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+const RED_SUITS = new Set(['hearts', 'diamonds']);
+
+let socket;
+let myId = null;
+let myRoomId = null;
+let myName = null;
+let isHost = false;
+
+let currentPlayers = [];
+let tableCards = [];     // [{id, suit, value, faceUp, x, y, rotation, zIndex}]
+let myHand = [];         // 내 패
+let otherHands = {};     // playerId → 장수(익명)
+let deckCount = 52;
+
+let selectedHandCards = new Set(); // 선택된 패 카드 id
+let menuCardId = null;
+
+// 드래그 상태
+let dragging = null; // { el, cardId, startX, startY, origX, origY }
+
+// ─────────────────────────────────────────────
+// 소켓 연결
+// ─────────────────────────────────────────────
+
+function connectSocket() {
+  socket = io();
+
+  socket.on('connect', () => { myId = socket.id; });
+
+  socket.on('error', ({ msg }) => {
+    document.getElementById('lobby-error').textContent = msg;
+    showToast(msg);
+  });
+
+  socket.on('joinedRoom', ({ roomId, playerId, players }) => {
+    myId = playerId;
+    myRoomId = roomId;
+    currentPlayers = players;
+    document.getElementById('room-tag').textContent = roomId;
+    showGame();
+    renderPlayerList();
+  });
+
+  socket.on('playerList', (players) => {
+    currentPlayers = players;
+    renderPlayerList();
+  });
+
+  socket.on('gameState', (state) => {
+    deckCount = state.deckCount;
+    tableCards = state.tableCards;
+    currentPlayers = state.players;
+
+    // 내 패 업데이트
+    myHand = state.hands[myId] || [];
+    otherHands = {};
+    for (const [pid, cards] of Object.entries(state.hands)) {
+      if (pid !== myId) otherHands[pid] = cards.length;
+    }
+
+    renderDeckCount();
+    renderTableCards();
+    renderMyHand();
+    renderPlayerList();
+  });
+
+  // 카드 이동 (빠른 반응)
+  socket.on('cardMoved', ({ cardId, x, y, rotation, zIndex }) => {
+    const card = tableCards.find(c => c.id === cardId);
+    if (card) { card.x = x; card.y = y; card.rotation = rotation; card.zIndex = zIndex; }
+    const el = document.querySelector(`.card[data-id="${cardId}"]`);
+    if (el) {
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.transform = `rotate(${rotation || 0}deg)`;
+      el.style.zIndex = zIndex;
+    }
+  });
+
+  socket.on('chat', (entry) => {
+    appendChat(entry);
+  });
+}
+
+// ─────────────────────────────────────────────
+// 로비 액션
+// ─────────────────────────────────────────────
+
+function getInputs() {
+  const name = document.getElementById('player-name').value.trim();
+  const room = document.getElementById('room-name').value.trim();
+  document.getElementById('lobby-error').textContent = '';
+  if (!name) { document.getElementById('lobby-error').textContent = '이름을 입력하세요.'; return null; }
+  if (!room) { document.getElementById('lobby-error').textContent = '방 이름을 입력하세요.'; return null; }
+  return { name, room };
+}
+
+function createRoom() {
+  const d = getInputs(); if (!d) return;
+  myName = d.name;
+  if (!socket) connectSocket();
+  setTimeout(() => socket.emit('createRoom', { roomId: d.room, playerName: d.name }), 100);
+}
+
+function joinRoom() {
+  const d = getInputs(); if (!d) return;
+  myName = d.name;
+  if (!socket) connectSocket();
+  setTimeout(() => socket.emit('joinRoom', { roomId: d.room, playerName: d.name }), 100);
+}
+
+function showGame() {
+  document.getElementById('lobby').style.display = 'none';
+  const g = document.getElementById('game');
+  g.style.display = 'flex';
+  // 방장 판별
+  checkHost();
+}
+
+function checkHost() {
+  const me = currentPlayers.find(p => p.id === myId);
+  isHost = currentPlayers.length > 0 && currentPlayers[0].id === myId;
+  document.getElementById('btn-shuffle').disabled = !isHost;
+  document.getElementById('btn-reset').disabled = !isHost;
+}
+
+// ─────────────────────────────────────────────
+// 렌더링
+// ─────────────────────────────────────────────
+
+function renderDeckCount() {
+  document.getElementById('deck-count').textContent = deckCount;
+}
+
+function renderPlayerList() {
+  checkHost();
+  const el = document.getElementById('player-list');
+  el.innerHTML = currentPlayers.map((p, i) => {
+    const isMe = p.id === myId;
+    const isH = i === 0;
+    const handCount = isMe ? myHand.length : (otherHands[p.id] || 0);
+    return `<div class="player-item">
+      <div class="player-dot"></div>
+      <span class="${isH ? 'player-host' : ''}">${p.name}${isH ? ' ♛' : ''}</span>
+      ${isMe ? '<span class="player-you">(you)</span>' : ''}
+      <span class="hand-count">${handCount > 0 ? `🎴×${handCount}` : ''}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderTableCards() {
+  const area = document.getElementById('table-area');
+  // 기존 카드 엘리먼트 제거
+  area.querySelectorAll('.card').forEach(el => el.remove());
+
+  // z순 정렬해서 렌더링
+  const sorted = [...tableCards].sort((a, b) => (a.zIndex || 1) - (b.zIndex || 1));
+  for (const card of sorted) {
+    const el = createCardEl(card);
+    area.appendChild(el);
+  }
+}
+
+function createCardEl(card) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.dataset.id = card.id;
+  el.style.left = card.x + 'px';
+  el.style.top = card.y + 'px';
+  el.style.zIndex = card.zIndex || 1;
+  el.style.transform = `rotate(${card.rotation || 0}deg)`;
+
+  if (card.faceUp) {
+    const color = RED_SUITS.has(card.suit) ? 'red' : 'black';
+    const sym = SUITS[card.suit] || '?';
+    el.innerHTML = `<div class="card-inner card-front">
+      <div class="suit-tl ${color}">${card.value}<br>${sym}</div>
+      <div class="suit-center ${color}">${sym}</div>
+      <div class="suit-br ${color}">${card.value}<br>${sym}</div>
+    </div>`;
+    el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+  } else {
+    el.innerHTML = `<div class="card-inner card-back"></div>`;
+    el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
+  }
+
+  // 드래그
+  el.addEventListener('mousedown', (e) => startDrag(e, el, card.id));
+  // 우클릭 컨텍스트 메뉴
+  el.addEventListener('contextmenu', (e) => { e.preventDefault(); openCardMenu(e, card.id); });
+
+  return el;
+}
+
+function renderMyHand() {
+  const el = document.getElementById('hand-cards');
+  el.innerHTML = '';
+  for (const card of myHand) {
+    const mini = document.createElement('div');
+    mini.className = 'hand-card-mini' + (selectedHandCards.has(card.id) ? ' selected' : '');
+    mini.dataset.id = card.id;
+    const color = RED_SUITS.has(card.suit) ? 'red' : 'black';
+    mini.style.color = color === 'red' ? '#c0392b' : '#1a1a1a';
+    mini.innerHTML = `<span style="position:absolute;top:2px;left:3px;font-size:0.55rem;font-weight:700">${card.value}</span>
+      <span style="font-size:0.9rem">${SUITS[card.suit]}</span>`;
+
+    mini.addEventListener('click', () => {
+      if (selectedHandCards.has(card.id)) selectedHandCards.delete(card.id);
+      else selectedHandCards.add(card.id);
+      renderMyHand();
+    });
+    el.appendChild(mini);
+  }
+}
+
+// ─────────────────────────────────────────────
+// 드래그 앤 드롭 (테이블 카드)
+// ─────────────────────────────────────────────
+
+function startDrag(e, el, cardId) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+
+  const rect = el.getBoundingClientRect();
+  const tableRect = document.getElementById('table-area').getBoundingClientRect();
+
+  dragging = {
+    el, cardId,
+    offsetX: e.clientX - rect.left,
+    offsetY: e.clientY - rect.top,
+    tableLeft: tableRect.left,
+    tableTop: tableRect.top
+  };
+
+  el.classList.add('dragging');
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', endDrag);
+}
+
+function onDrag(e) {
+  if (!dragging) return;
+  const x = e.clientX - dragging.tableLeft - dragging.offsetX;
+  const y = e.clientY - dragging.tableTop - dragging.offsetY;
+  dragging.el.style.left = x + 'px';
+  dragging.el.style.top = y + 'px';
+}
+
+function endDrag(e) {
+  if (!dragging) return;
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', endDrag);
+
+  const x = parseFloat(dragging.el.style.left);
+  const y = parseFloat(dragging.el.style.top);
+
+  socket.emit('moveCard', { cardId: dragging.cardId, x, y, rotation: 0 });
+
+  dragging.el.classList.remove('dragging');
+  dragging = null;
+}
+
+// ─────────────────────────────────────────────
+// 카드 컨텍스트 메뉴
+// ─────────────────────────────────────────────
+
+function openCardMenu(e, cardId) {
+  menuCardId = cardId;
+  const menu = document.getElementById('card-menu');
+  menu.style.display = 'block';
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
+}
+
+function closeCardMenu() {
+  document.getElementById('card-menu').style.display = 'none';
+  menuCardId = null;
+}
+
+function menuFlip() {
+  if (!menuCardId) return;
+  socket.emit('flipCard', { cardId: menuCardId });
+  closeCardMenu();
+}
+
+function menuPickup() {
+  if (!menuCardId) return;
+  socket.emit('pickupCard', { cardId: menuCardId });
+  closeCardMenu();
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#card-menu')) closeCardMenu();
+});
+
+// ─────────────────────────────────────────────
+// 액션 버튼
+// ─────────────────────────────────────────────
+
+function drawCard() { socket.emit('drawCard', { count: 1 }); }
+
+function openDealModal() { document.getElementById('deal-modal').classList.add('show'); }
+function closeDealModal() { document.getElementById('deal-modal').classList.remove('show'); }
+function confirmDeal() {
+  const count = parseInt(document.getElementById('deal-count').value) || 1;
+  socket.emit('dealCards', { count });
+  closeDealModal();
+}
+
+function discardSelected() {
+  if (selectedHandCards.size === 0) {
+    showToast('패에서 카드를 선택하세요.');
+    return;
+  }
+  const area = document.getElementById('table-area');
+  const rect = area.getBoundingClientRect();
+  let x = 300, y = 200;
+  for (const cardId of selectedHandCards) {
+    socket.emit('discardCard', { cardId, x: x + Math.random()*40-20, y: y + Math.random()*40-20 });
+    x += 30;
+  }
+  selectedHandCards.clear();
+}
+
+function revealHand() {
+  if (myHand.length === 0) { showToast('패가 비어있습니다.'); return; }
+  socket.emit('revealHand');
+  selectedHandCards.clear();
+}
+
+function shuffleDeck() { socket.emit('shuffleDeck'); }
+function resetDeck() {
+  if (!confirm('덱을 초기화하면 모든 카드가 돌아갑니다. 계속하시겠습니까?')) return;
+  socket.emit('resetDeck');
+}
+
+// ─────────────────────────────────────────────
+// 채팅
+// ─────────────────────────────────────────────
+
+function sendChat() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  socket.emit('chat', { msg });
+  input.value = '';
+}
+
+function appendChat(entry) {
+  const box = document.getElementById('chat-box');
+  const div = document.createElement('div');
+  if (entry.system) {
+    div.className = 'chat-msg system';
+    div.textContent = entry.msg;
+  } else {
+    div.className = 'chat-msg';
+    div.innerHTML = `<span class="chat-name">${entry.name}</span><span class="chat-text">${escHtml(entry.msg)}</span>`;
+  }
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─────────────────────────────────────────────
+// 토스트
+// ─────────────────────────────────────────────
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// 엔터 키 로비
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && document.getElementById('lobby').style.display !== 'none') {
+    joinRoom();
+  }
+});
+</script>
+</body>
+</html>
