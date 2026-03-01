@@ -268,7 +268,7 @@
     border-radius: 6px;
     cursor: grab;
     user-select: none;
-    transition: box-shadow 0.1s;
+    transition: box-shadow 0.1s, left 0.05s linear, top 0.05s linear;
     transform-origin: center center;
   }
 
@@ -277,6 +277,7 @@
   .card.dragging {
     box-shadow: 0 20px 40px rgba(0,0,0,0.6) !important;
     z-index: 9999 !important;
+    transition: box-shadow 0.1s !important; /* 드래그 중엔 위치 transition 제거 */
   }
 
   .card-inner {
@@ -838,6 +839,7 @@ function connectSocket() {
   });
 
   // 카드 이동 (빠른 반응)
+  // 카드 이동 확정
   socket.on('cardMoved', ({ cardId, x, y, rotation, zIndex }) => {
     const card = tableCards.find(c => c.id === cardId);
     if (card) { card.x = x; card.y = y; card.rotation = rotation; card.zIndex = zIndex; }
@@ -847,6 +849,15 @@ function connectSocket() {
       el.style.top = y + 'px';
       el.style.transform = `rotate(${rotation || 0}deg)`;
       el.style.zIndex = zIndex;
+    }
+  });
+
+  // 드래그 중 실시간 위치 (상대방 카드가 부드럽게 따라옴)
+  socket.on('cardDragging', ({ cardId, x, y }) => {
+    const el = document.querySelector(`.card[data-id="${cardId}"]`);
+    if (el && !el.classList.contains('dragging')) {
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
     }
   });
 
@@ -1037,6 +1048,12 @@ function onDragTouch(e) {
   const y = touch.clientY - dragging.tableTop - dragging.offsetY;
   dragging.el.style.left = x + 'px';
   dragging.el.style.top = y + 'px';
+
+  const now = Date.now();
+  if (now - lastDragEmit > 20) {
+    socket.emit('dragCard', { cardId: dragging.cardId, x, y });
+    lastDragEmit = now;
+  }
 }
 
 function endDragTouch(e) {
@@ -1052,12 +1069,21 @@ function endDragTouch(e) {
   dragging = null;
 }
 
+let lastDragEmit = 0;
+
 function onDrag(e) {
   if (!dragging) return;
   const x = e.clientX - dragging.tableLeft - dragging.offsetX;
   const y = e.clientY - dragging.tableTop - dragging.offsetY;
   dragging.el.style.left = x + 'px';
   dragging.el.style.top = y + 'px';
+
+  // 20ms throttle로 서버에 실시간 전송
+  const now = Date.now();
+  if (now - lastDragEmit > 20) {
+    socket.emit('dragCard', { cardId: dragging.cardId, x, y });
+    lastDragEmit = now;
+  }
 }
 
 function endDrag(e) {

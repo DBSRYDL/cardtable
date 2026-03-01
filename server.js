@@ -227,7 +227,14 @@ io.on('connection', (socket) => {
     broadcastState(room);
   });
 
-  // 테이블 카드 이동 (드래그앤드롭)
+  // 드래그 중 실시간 위치 브로드캐스트 (상태 저장 없이 즉시 전달)
+  socket.on('dragCard', ({ cardId, x, y }) => {
+    const room = rooms[socket.data.roomId];
+    if (!room) return;
+    socket.to(socket.data.roomId).emit('cardDragging', { cardId, x, y });
+  });
+
+  // 테이블 카드 이동 확정 (드롭 시 서버 상태 저장)
   socket.on('moveCard', ({ cardId, x, y, rotation }) => {
     const room = rooms[socket.data.roomId];
     if (!room) return;
