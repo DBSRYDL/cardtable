@@ -295,10 +295,10 @@ io.on('connection', (socket) => {
     broadcastState(room);
   });
 
-  // 덱 셔플 (방장만)
+  // 덱 셔플 (모두 가능)
   socket.on('shuffleDeck', () => {
     const room = rooms[socket.data.roomId];
-    if (!room || room.host !== socket.id) return;
+    if (!room) return;
     room.deck = shuffle(room.deck);
     broadcastState(room);
     io.to(socket.data.roomId).emit('chat', {
@@ -307,10 +307,10 @@ io.on('connection', (socket) => {
     });
   });
 
-  // 덱 리셋 (방장만) - 테이블 카드 + 패 전부 덱으로
+  // 덱 리셋 (모두 가능) - 테이블 카드 + 패 전부 덱으로
   socket.on('resetDeck', () => {
     const room = rooms[socket.data.roomId];
-    if (!room || room.host !== socket.id) return;
+    if (!room) return;
     room.deck = shuffle(createDeck());
     room.tableCards = [];
     for (const pid of Object.keys(room.hands)) room.hands[pid] = [];

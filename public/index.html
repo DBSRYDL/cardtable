@@ -719,8 +719,8 @@
         <button class="act-btn" onclick="discardSelected()" title="선택한 패 카드를 테이블로">↓ Discard</button>
         <button class="act-btn" onclick="revealHand()" title="내 패 전체 공개">👐 Reveal</button>
       </div>
-      <button class="act-btn full host-only" id="btn-shuffle" onclick="shuffleDeck()" title="방장: 덱 셔플">🔀 Shuffle Deck</button>
-      <button class="act-btn full host-only" id="btn-reset" onclick="resetDeck()" title="방장: 덱 초기화">♻️ Reset Deck</button>
+      <button class="act-btn full" id="btn-shuffle" onclick="shuffleDeck()" title="덱 셔플">🔀 Shuffle Deck</button>
+      <button class="act-btn full" id="btn-reset" onclick="resetDeck()" title="덱 초기화">♻️ Reset Deck</button>
     </div>
 
     <!-- 내 패 -->
@@ -891,10 +891,7 @@ function showGame() {
 }
 
 function checkHost() {
-  const me = currentPlayers.find(p => p.id === myId);
   isHost = currentPlayers.length > 0 && currentPlayers[0].id === myId;
-  document.getElementById('btn-shuffle').disabled = !isHost;
-  document.getElementById('btn-reset').disabled = !isHost;
 }
 
 // ─────────────────────────────────────────────
@@ -957,8 +954,10 @@ function createCardEl(card) {
     el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
   }
 
-  // 드래그
+  // 드래그 (마우스)
   el.addEventListener('mousedown', (e) => startDrag(e, el, card.id));
+  // 드래그 (터치)
+  el.addEventListener('touchstart', (e) => startDragTouch(e, el, card.id), { passive: false });
   // 우클릭 컨텍스트 메뉴
   el.addEventListener('contextmenu', (e) => { e.preventDefault(); openCardMenu(e, card.id); });
 
@@ -1008,6 +1007,49 @@ function startDrag(e, el, cardId) {
   el.classList.add('dragging');
   document.addEventListener('mousemove', onDrag);
   document.addEventListener('mouseup', endDrag);
+}
+
+// ── 터치 드래그 ──
+function startDragTouch(e, el, cardId) {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = el.getBoundingClientRect();
+  const tableRect = document.getElementById('table-area').getBoundingClientRect();
+
+  dragging = {
+    el, cardId,
+    offsetX: touch.clientX - rect.left,
+    offsetY: touch.clientY - rect.top,
+    tableLeft: tableRect.left,
+    tableTop: tableRect.top
+  };
+
+  el.classList.add('dragging');
+  document.addEventListener('touchmove', onDragTouch, { passive: false });
+  document.addEventListener('touchend', endDragTouch);
+}
+
+function onDragTouch(e) {
+  if (!dragging) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const x = touch.clientX - dragging.tableLeft - dragging.offsetX;
+  const y = touch.clientY - dragging.tableTop - dragging.offsetY;
+  dragging.el.style.left = x + 'px';
+  dragging.el.style.top = y + 'px';
+}
+
+function endDragTouch(e) {
+  if (!dragging) return;
+  document.removeEventListener('touchmove', onDragTouch);
+  document.removeEventListener('touchend', endDragTouch);
+
+  const x = parseFloat(dragging.el.style.left);
+  const y = parseFloat(dragging.el.style.top);
+  socket.emit('moveCard', { cardId: dragging.cardId, x, y, rotation: 0 });
+
+  dragging.el.classList.remove('dragging');
+  dragging = null;
 }
 
 function onDrag(e) {
